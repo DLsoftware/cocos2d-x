@@ -1,3 +1,2 @@
 # cocos2d-x
-dasdsa
-asdasd
+#参照网上的代码，自己封装的两个类，用于实现label的换行和超链接，以及gif的实现
