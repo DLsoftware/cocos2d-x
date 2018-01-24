@@ -77,7 +77,7 @@ function MyRichText:formatText()
 end
 
 function MyRichText:getUf8TextSplitLen(text, splitTxtWidth, stringLength)
-	local ConfigFontsPixWidth = require("src.app.Utility.uirichtext.ConfigFontsPixWidth")
+	local ConfigFontsPixWidth = require("myRichText.ConfigFontsPixWidth")
 	local pixW = 0
 	for i=1,stringLength do
 		local word = MySplitStrTools.utf8sub(text, i, 1)
