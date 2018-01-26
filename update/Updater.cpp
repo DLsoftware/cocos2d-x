@@ -1,3 +1,27 @@
+/****************************************************************************
+Copyright (c) 2013 cocos2d-x.org
+
+http://www.cocos2d-x.org
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+****************************************************************************/
+
 #include "Updater.h"
 #include "cocos2d.h"
 
@@ -40,6 +64,13 @@ using namespace std;
 #define UPDATER_MESSAGE_PROGRESS                      2
 #define UPDATER_MESSAGE_ERROR                         3
 
+#ifdef _WIN32
+#define SHORT_SLEEP Sleep(100)
+#else
+#define SHORT_SLEEP usleep(100000)
+#endif
+
+
 static int lastPercent = 0;
 
 // Some data struct for sending messages
@@ -81,7 +112,6 @@ static double get_download_size(const char *url)
 	curl_easy_setopt(curl, CURLOPT_URL, url);
 	curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
 	curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, get_size_struct);
-	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 	res = curl_easy_perform(curl);
 	res = curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &size);
 	if (res != CURLE_OK)
@@ -177,7 +207,7 @@ void Updater::clearOnSuccess()
 static size_t getUpdateInfoWriteFunc(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
 	string *updateInfo = (string*)userdata;
-	CCLOG("getUpdateInfoWriteFunc %s", updateInfo->c_str());
+	
 	updateInfo->append((char*)ptr, size * nmemb);
 
 	return (size * nmemb);
@@ -218,7 +248,7 @@ const char* Updater::getUpdateInfo(const char* url)
 		CCLOG("Can not get update info content %s, error code is %d", url, res);
 		return "";
 	}
-
+	CCLOG("getUpdateInfoWriteFunc %s", _updateInfoString.c_str());
 	return _updateInfoString.c_str();
 }
 
@@ -724,7 +754,6 @@ bool Updater::downloadMuti(const char* fileUrl, const char* filePath)
 		curl_easy_setopt(single_handles[i], CURLOPT_URL, fileUrl);
 		curl_easy_setopt(single_handles[i], CURLOPT_HEADER, 0);
 		curl_easy_setopt(single_handles[i], CURLOPT_RANGE, range);  //设置range请求
-		curl_easy_setopt(single_handles[i], CURLOPT_FOLLOWLOCATION, 1L);
 		curl_easy_setopt(single_handles[i], CURLOPT_WRITEFUNCTION, downloadWriteFunc);//设置接收到文件内容回调
 		curl_easy_setopt(single_handles[i], CURLOPT_WRITEDATA, &fileparts[i]); //写数据回调的最后一个参数
 		curl_easy_setopt(single_handles[i], CURLOPT_NOPROGRESS, 0); //设置进度回调功能
@@ -833,27 +862,20 @@ int Updater::curl_multi_select(CURLM *multi_handle)
 	FD_ZERO(&fdexcep);
 
 	// set a suitable timeout to play with
-	timeout.tv_sec = 100 * 1000;
-	timeout.tv_usec = 0;
-
 	curl_multi_timeout(multi_handle, &curl_timeo);
-	if (curl_timeo >= 0)
-	{
-		timeout.tv_sec = curl_timeo / 1000;
-		if (timeout.tv_sec > 1)
-		{
-			timeout.tv_sec = 1;
-		}
-		else
-		{
-			timeout.tv_usec = (curl_timeo % 1000) * 1000;
-		}
-	}
+	if (curl_timeo < 0)
+		curl_timeo = 1000;
+
+	timeout.tv_sec = curl_timeo / 1000;
+	timeout.tv_usec = (curl_timeo % 1000) * 1000;
 
 	curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
 
 	if (maxfd == -1)
+	{
+		SHORT_SLEEP;
 		rc = 0;
+	}
 	else
 		rc = select(maxfd + 1, &fdread, &fdwrite, &fdexcep, &timeout);
 
